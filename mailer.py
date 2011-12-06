@@ -149,8 +149,9 @@ class looper(object):
 
 	def getRecipient(self):
 		for x in range(self.num2Send):
+			print self.gotLastMail
 			recipient = random.choice(self.subscriber)
-			while recipient in self.gotLastMail and recipient in self.gotThisMail:
+			while recipient in self.gotLastMail or recipient in self.gotThisMail:
 				if len(self.gotLastMail) == len(self.subscriber):
 					log.debug("Only one email-address ?!")
 					break
