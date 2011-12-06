@@ -1,5 +1,17 @@
-import smtplib, email.mime.text, imaplib, email, time, sys, random, getpass, math
+import smtplib, email.mime.text, imaplib, email, time, sys, random, getpass, math, logging
 
+# Enable logging
+level = logging.INFO
+log = logging.getLogger(sys.argv[0])
+log.setLevel(level)
+
+ch = logging.StreamHandler()
+ch.setLevel(level)
+
+formatter = logging.Formatter("%(asctime)s - %(message)s")
+ch.setFormatter(formatter)
+
+log.addHandler(ch)
 
 class mailer(object):
 	def __init__(self, address, passwd):
@@ -47,7 +59,7 @@ class mailer(object):
 
 class useful(object):
 	def __init__(self):
-		self.file2Open = 'data.txt'
+		pass
 
 	def genRandID(self, fromInt, toInt = -1):
 		if toInt == -1:
@@ -57,21 +69,38 @@ class useful(object):
 			tmp += str(random.randint(0,9))
 		return int(tmp)
 
-	def append2File(self, text):
-		oldContent = ""
-		try:
-			fd = open(self.file2Open, 'r')
-			oldContent = fd.read()
-			fd.close()
-		except IOError:
-			pass
-		fd = open(self.file2Open, 'w')
-		if oldContent == "":
-			fd.write(text)
-		else:
-			fd.write(oldContent + "\n\n" + text)
-		fd.close()
 
+
+class story(object):
+	def __init__(self):
+		self.openFile = 'story.txt'
+		self.story = []
+		
+		self.fd = open(self.openFile, 'a+')
+		self.story = [line.replace('\n','') for line in self.fd.readlines()]
+
+
+	def append(self, text):
+		text = text.replace('\n', '')
+		print >> self.fd, text
+		self.story.append(text)
+		self.fd.flush()
+
+
+	def printStory(self):
+		print '\n'.join(self.story)
+
+
+	def lastPhrase(self):
+		try:
+			return self.story[-1]
+		except IndexError:
+			return 'Kein letzter Satz.'
+
+
+	def __del__(self):
+		self.printStory()
+		self.fd.close()
 
 
 class looper(object):
@@ -83,14 +112,16 @@ class looper(object):
 
 		self.subject = 'WAM - Write and Mail'
 		self.content = '\n'.join([
-															'Hey,',
-															'schoen, dass du mitspielst!',
-															'Gib deinen Satz einfach ein.',
-															'Pass dabei aber auf, dass du kein "-" nutzt',
-															'und dieses Zeichen deinen Satz vom Rest der Mail trennt.',
-															'',
-															'Viel Spasz wuenscht kpj',
-										])
+				'Hey,',
+				'schoen, dass du mitspielst!',
+				'Gib deinen Satz einfach ein.',
+				'Der vorhergehende Satz war:',
+				'%s',
+				'Pass dabei aber auf, dass du kein "-" nutzt',
+				'und dieses Zeichen deinen Satz vom Rest der Mail trennt.',
+				'',
+				'Viel Spasz wuenscht kpj',
+		])
 
 		self.subscriber = ["pythoner@gmx.de"] # TO EDIT
 		self.num2Send = int(math.ceil(float(len(self.subscriber))/3))
@@ -100,7 +131,7 @@ class looper(object):
 		self.ID = self.u.genRandID(5,10)
 		self.currentSubject = '%s (%i)' % (self.subject, self.ID)
 
-		self.story = ''
+		self.story = story()
 
 
 	def getRecipient(self):
@@ -108,7 +139,7 @@ class looper(object):
 			recipient = random.choice(self.subscriber)
 			while recipient in self.gotLastMail and recipient in self.gotThisMail:
 				if len(self.gotLastMail) == len(self.subscriber):
-					print "Only one email-address ?!"
+					log.debug("Only one email-address ?!")
 					break
 				recipient = random.choice(self.subscriber)
 			self.gotThisMail.append(recipient)
@@ -123,8 +154,10 @@ class looper(object):
 	
 	def sendMails(self):
 		for recipient in self.getRecipient():
-			print "Sending mail to %s" % recipient
-			self.m.sendMail(self.currentSubject, self.content, recipient)
+			log.info("Sending mail to %s" % recipient)
+			self.m.sendMail(self.currentSubject,
+					self.content % self.story.lastPhrase(),
+					recipient)
 
 
 	def start(self):
@@ -132,21 +165,27 @@ class looper(object):
 		while True:
 			mails = []
 			while True:
-				print "Receiving mails (%s)" % repr(self.currentSubject)
+				log.debug("Receiving mails (%s)" % repr(self.currentSubject))
 				mails = self.m.getMail(self.currentSubject)
-				print "Received 1 mail" if len(mails) == 1 else "Received %i mails"%len(mails)
 				if mails:
+					log.info("Received 1 mail" if len(mails) == 1 else "Received %i mails"%len(mails))
 					break
+				else:
+					log.debug("Received 0 mails")
 				time.sleep(self.runInterval)
 
 			self.ID += 1
 			self.currentSubject = '%s (%i)' % (self.subject, self.ID)
-			self.story += self.getStory(mails[0])
+
+			content = self.getStory(mails[0])
+			self.story.append(content)
 
 			self.sendMails()
 
 
 	def __del__(self):
-		print self.u.append2File(self.story)
+		pass
 
 looper().start()
+
+# vim: autoindent:
