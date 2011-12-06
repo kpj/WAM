@@ -114,7 +114,7 @@ class story(object):
 class looper(object):
 	def __init__(self):
 		self.u = useful()
-		self.m = mailer('kpjkpjkpjkpjkpjkpj@googlemail.com', getpass.getpass())
+		self.m = mailer('kpjkpjkpjkpjkpjkpj+WAM@googlemail.com', getpass.getpass())
 
 		self.runInterval = 60 # in seconds
 		self.seperator = ',.-/^\-.,'
