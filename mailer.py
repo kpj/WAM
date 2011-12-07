@@ -1,4 +1,4 @@
-import smtplib, email.mime.text, imaplib, email, time, sys, random, getpass, math, logging
+import smtplib, email.mime.text, imaplib, email, time, sys, random, getpass, math, logging, re
 
 # Enable logging
 level = logging.DEBUG
@@ -163,15 +163,19 @@ class looper(object):
 
 
 	def getStory(self, mail):
-		return mail.split(self.seperator)[1]
+		for pat in re.findall(r'>.*',mail):
+			mail = mail.replace(pat,'').rstrip()
+		return mail.split(self.seperator)[1].strip()
 
 	
 	def sendMails(self):
 		for recipient in self.getRecipient():
 			log.info("Sending mail to %s" % recipient)
 			self.m.sendMail(self.currentSubject,
-					self.content % (self.seperator, self.seperator, self.story.lastPhrase()),
-					recipient)
+					self.content % (self.seperator, 
+							self.seperator, 
+							self.story.lastPhrase()),
+							recipient)
 
 
 	def start(self):
