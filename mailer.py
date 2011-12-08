@@ -1,4 +1,4 @@
-import smtplib, email.mime.text, imaplib, email, time, sys, random, getpass, math, logging, re
+import smtplib, email.mime.text, imaplib, email, email.Iterators,  email.header, time, sys, random, getpass, math, logging, re
 
 # Enable logging
 level = logging.DEBUG
@@ -26,10 +26,11 @@ class mailer(object):
 
 		self.recv_server = imaplib.IMAP4_SSL("imap.googlemail.com")
 		self.recv_server.login(self.__address, self.__passwd)
+		self.recv_server.select()
 
 
 	def sendMail(self, subject, content, target):
-		msg = email.mime.text.MIMEText(content)
+		msg = email.mime.text.MIMEText(content, 'plain', 'utf-8')
 		msg['Subject'] = subject
 		msg['From'] = self.__address
 		msg['To'] = target
@@ -37,19 +38,53 @@ class mailer(object):
 		self.send_server.sendmail(self.__address, target, msg.as_string())
 
 		
-	def getMail(self, subject):
+	def getMail(self, subject, delete = True):
 		self.recv_server.select()
 		typ, data = self.recv_server.search(None, 'SUBJECT', '"%s"' % (subject))
 
 		output = []
 		for num in data[0].split():
-			typ, data = self.recv_server.fetch(num, '(BODY.PEEK[TEXT])')
-			for response_part in data:
-				if isinstance(response_part, tuple):
-					output.append(response_part[1])
-			self.recv_server.store(num, '+FLAGS', r'(\Deleted)')
+			# m.get_body(email.message_from_string(m.g(1)[0][1]))
+			typ, data = self.recv_server.fetch(num, '(RFC822)')
+			mail = email.message_from_string(data[0][1])
+			content = self.get_body(mail)
+			output.append(content)
+
+			if delete:
+				self.recv_server.store(num, '+FLAGS', r'(\Deleted)')
 
 		return output
+
+
+	def getHeader(self, num):
+		h = self.recv_server.fetch(num, '(BODY[HEADER])')
+		header_text = h[1][0][1]
+		parser = email.parser.HeaderParser()
+		head = parser.parsestr(header)
+		return head
+
+
+	def get_charset(self, message, default="ascii"):
+		if message.get_content_charset():
+			return message.get_content_charset()
+		if message.get_charset():
+			return message.get_charset()
+		return default
+
+	
+	def get_body(self, message):
+		if message.is_multipart():
+			text_parts = [part for part in email.Iterators.typed_subpart_iterator(message, 'text', 'plain')]
+
+			body = []
+			for part in text_parts:
+				charset = self.get_charset(part, self.get_charset(message))
+				body.append(unicode(part.get_payload(decode=True),charset,"replace"))
+
+			return u"\n".join(body).strip()
+		else:
+			body = unicode(message.get_payload(decode=True),self.get_charset(message),"replace")
+			return body.strip()
 
 
 	def __del__(self):
@@ -78,7 +113,7 @@ class story(object):
 		self.story = []
 		
 		self.fd = open(self.openFile, 'a+')
-		self.story = [line.replace('\n','') for line in self.fd.readlines()]
+		self.story = [line.replace('\n','').decode('utf-8') for line in self.fd.readlines()]
 		
 		self.identity = identity
 
@@ -89,8 +124,9 @@ class story(object):
 
 	def append(self, text):
 		text = text.replace('\n', '')
-		print >> self.fd, text
 		self.story.append(text)
+		text = text.encode('utf-8')
+		print >> self.fd, text
 		self.fd.flush()
 
 
@@ -116,7 +152,7 @@ class looper(object):
 		self.u = useful()
 		self.m = mailer('kpjkpjkpjkpjkpjkpj+WAM@googlemail.com', getpass.getpass())
 
-		self.runInterval = 60 # in seconds
+		self.runInterval = 2 # in seconds
 		self.seperator = ',.-/^\-.,'
 
 		self.subject = 'WAM - Write and Mail'
@@ -130,15 +166,16 @@ class looper(object):
 				'Der vorhergehende Satz war:',
 				'',
 				'%s',
+				'',
 				'Pass dabei aber auf, dass du kein "-" nutzt',
 				'und dieses Zeichen deinen Satz vom Rest der Mail trennt.',
 				'',
 				'Viel Spasz wuenscht kpj',
 		])
 
-		self.subscriber = ["qaywsxedc291@web.de",
-				"mr.flubbie@gmx.de",
-				"abi1789@googlemail.com"]
+		self.subscriber = ["qaywsxedc291@web.de",]
+				#"mr.flubbie@gmx.de",
+				#"abi1789@googlemail.com"]
 		self.num2Send = int(math.ceil(float(len(self.subscriber))/3))
 		self.gotThisMail = []
 		self.gotLastMail = []
@@ -149,7 +186,6 @@ class looper(object):
 
 	def getRecipient(self):
 		for x in range(self.num2Send):
-			print self.gotLastMail
 			recipient = random.choice(self.subscriber)
 			while recipient in self.gotLastMail or recipient in self.gotThisMail:
 				if len(self.gotLastMail) == len(self.subscriber):
@@ -163,9 +199,12 @@ class looper(object):
 
 
 	def getStory(self, mail):
-		for pat in re.findall(r'>.*',mail):
+		for pat in re.findall(u'>.*', mail):
 			mail = mail.replace(pat,'').rstrip()
-		return mail.split(self.seperator)[1].strip()
+		try:
+			return mail.split(self.seperator)[1].strip()
+		except IndexError:
+			return mail
 
 	
 	def sendMails(self):
@@ -204,6 +243,6 @@ class looper(object):
 	def __del__(self):
 		pass
 
-#looper().start()
-l=looper()
+looper().start()
+#m=mailer('kpjkpjkpjkpjkpjkpj+WAM@googlemail.com', getpass.getpass())
 # vim: autoindent:
