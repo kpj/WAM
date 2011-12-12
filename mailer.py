@@ -1,4 +1,6 @@
-import smtplib, email.mime.text, imaplib, email, email.Iterators,  email.header, time, sys, random, getpass, math, logging, re
+import smtplib, imaplib, getpass, logging
+import email, email.mime.text, email.Iterators,  email.header
+import time, sys, random, math,  re
 
 # Enable logging
 level = logging.DEBUG
@@ -12,6 +14,27 @@ formatter = logging.Formatter("%(asctime)s - %(message)s")
 ch.setFormatter(formatter)
 
 log.addHandler(ch)
+
+
+
+class getData(object):
+	def __init__(self):
+		self.fileWithMails = 'mails.txt'
+
+		self.fd = open(self.fileWithMails, 'a+')
+
+
+	def genMailList(self):
+		lines = self.fd.read()
+		mailList = lines.split('\n')
+		for i in range(len(mailList)):
+			try:
+				mailList.remove('')
+			except ValueError:
+				pass
+		return mailList
+
+
 
 class mailer(object):
 	def __init__(self, address, passwd):
@@ -79,11 +102,11 @@ class mailer(object):
 			body = []
 			for part in text_parts:
 				charset = self.get_charset(part, self.get_charset(message))
-				body.append(unicode(part.get_payload(decode=True),charset,"replace"))
+				body.append(unicode(part.get_payload(decode=True), charset, "replace"))
 
 			return u"\n".join(body).strip()
 		else:
-			body = unicode(message.get_payload(decode=True),self.get_charset(message),"replace")
+			body = unicode(message.get_payload(decode=True), self.get_charset(message), "replace")
 			return body.strip()
 
 
@@ -149,33 +172,29 @@ class story(object):
 
 class looper(object):
 	def __init__(self):
+		self.ownMail = 'kpjkpjkpjkpjkpjkpj@googlemail.com'
+
 		self.u = useful()
 		self.m = mailer('kpjkpjkpjkpjkpjkpj+WAM@googlemail.com', getpass.getpass())
+		self.g = getData()
 
 		self.runInterval = 2 # in seconds
-		self.seperator = ',.-/^\-.,'
 
 		self.subject = 'WAM - Write and Mail'
 		self.content = '\n'.join([
 				'Hey,',
 				'schoen, dass du mitspielst!',
-				'Gib deinen Satz einfach zwischen den Zeichen ein:',
-				'%s',
-				'<-- Hier koennte Ihr Satz stehen. -->',
-				'%s',
+				'Antworte einfach und schreibe entweder ueber,',
+				'oder unter diesem Abschnitt.',
+				'(Am Besten mit ein paar Leerzeilen ;))',
 				'Der vorhergehende Satz war:',
 				'',
 				'%s',
 				'',
-				'Pass dabei aber auf, dass du kein "-" nutzt',
-				'und dieses Zeichen deinen Satz vom Rest der Mail trennt.',
-				'',
 				'Viel Spasz wuenscht kpj',
 		])
 
-		self.subscriber = ["qaywsxedc291@web.de",]
-				#"mr.flubbie@gmx.de",
-				#"abi1789@googlemail.com"]
+		self.subscriber = self.g.genMailList()
 		self.num2Send = int(math.ceil(float(len(self.subscriber))/3))
 		self.gotThisMail = []
 		self.gotLastMail = []
@@ -199,20 +218,50 @@ class looper(object):
 
 
 	def getStory(self, mail):
-		for pat in re.findall(u'>.*', mail):
-			mail = mail.replace(pat,'').rstrip()
-		try:
-			return mail.split(self.seperator)[1].strip()
-		except IndexError:
-			return mail
+		m = mail.split('\n')
+		comment_pattern = '>'
+
+    # Just always delete my own address:
+		for i in range(len(m)):
+			if self.ownMail in m[i]:
+				m.remove(m[i])
+				break
+
+		pos = -1
+		hadComment = False
+		for p in m:
+			pos += 1
+			if comment_pattern in p:
+				hadComment = True
+				break
+		if hadComment:
+			m.pop(pos-1)
+
+		toDel = []
+		for i in range(len(m)):
+			if comment_pattern in m[i]:
+				toDel.append(m[i])
+		for i in toDel:
+			m.remove(i)
+
+		for i in range(len(m)):
+			try:
+				m.remove('')
+			except ValueError:
+				pass
+
+		m.remove('\r')
+
+		mail = '\n'.join(m)
+
+		return mail
 
 	
 	def sendMails(self):
 		for recipient in self.getRecipient():
 			log.info("Sending mail to %s" % recipient)
 			self.m.sendMail(self.currentSubject,
-					self.content % (self.seperator, 
-							self.seperator, 
+					self.content % ( 
 							self.story.lastPhrase()),
 							recipient)
 
@@ -234,7 +283,7 @@ class looper(object):
 			self.story.setID(self.u.genRandID(5,10))
 			self.currentSubject = '%s (%i)' % (self.subject, self.story.identity)
 
-			content = self.getStory(mails[0])
+			content = ''.join(self.getStory(mails[0]))
 			self.story.append(content)
 
 			self.sendMails()
@@ -244,5 +293,7 @@ class looper(object):
 		pass
 
 looper().start()
+#getData().genMailList()
 #m=mailer('kpjkpjkpjkpjkpjkpj+WAM@googlemail.com', getpass.getpass())
+#l = looper()
 # vim: autoindent:
