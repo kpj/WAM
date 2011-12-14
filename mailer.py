@@ -1,9 +1,16 @@
-import smtplib, imaplib, getpass, logging
+###############################################
+#                                             #
+#  Send SIGUSR1 to update the subscribe-list  #
+#  example: killall -USR1 python           #
+#                                             #
+###############################################
+
+import smtplib, imaplib, getpass, logging, signal
 import email, email.mime.text, email.Iterators,  email.header
-import time, sys, random, math,  re
+import time, sys, random, math, re
 
 # Enable logging
-level = logging.DEBUG
+level = logging.INFO
 log = logging.getLogger(sys.argv[0])
 log.setLevel(level)
 
@@ -15,6 +22,16 @@ ch.setFormatter(formatter)
 
 log.addHandler(ch)
 
+class signalHandler(object):
+	def __init__(self, sig, func):
+		self.func = func
+		signal.signal(sig, self.handler)
+
+
+	def handler(self, signum, frame):
+		log.info("Executed function...")
+		self.func()
+			
 
 
 class getData(object):
@@ -194,13 +211,19 @@ class looper(object):
 				'Viel Spasz wuenscht kpj',
 		])
 
-		self.subscriber = self.g.genMailList()
-		self.num2Send = int(math.ceil(float(len(self.subscriber))/3))
+		self.genSubscribers()
+		self.s = signalHandler(signal.SIGUSR1, self.genSubscribers)
+
 		self.gotThisMail = []
 		self.gotLastMail = []
 
 		self.story = story(self.u.genRandID(5,10))
 		self.currentSubject = '%s (%i)' % (self.subject, self.story.identity)
+
+
+	def genSubscribers(self):
+		self.subscriber = self.g.genMailList()
+		self.num2Send = int(math.ceil(float(len(self.subscriber))/3))
 
 
 	def getRecipient(self):
